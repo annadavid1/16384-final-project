@@ -6,7 +6,7 @@ import time
 
 def fk(robot, kinematics):
     joints = robot.joint_values()
-    return kinematics.forward_kinematics(joints)
+    return kinematics.forward_kinematics(joints)[:,:,-1]
 
 detector = LightsaberDetector()
 with Robot() as robot:

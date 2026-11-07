@@ -14,13 +14,13 @@ import numpy as np
 # Joint i then turns everything after it about that frame's z axis, by its
 # angle q_i. Robot(XARM7_JOINTS) is the xArm7.
 XARM7_JOINTS = np.array([
-    [0.0, 0.0, 0.267, 0.0, 0.0, 0.0],
-    [0.0, 0.0, 0.0, -np.pi / 2, 0.0, 0.0],
-    [0.0, -0.293, 0.0, np.pi / 2, 0.0, 0.0],
-    [0.0525, 0.0, 0.0, np.pi / 2, 0.0, 0.0],
-    [0.0775, -0.3425, 0.0, np.pi / 2, 0.0, 0.0],
-    [0.0, 0.0, 0.0, np.pi / 2, 0.0, 0.0],
-    [0.076, 0.097, 0.0, -np.pi / 2, 0.0, 0.0],
+    [0, 0, 267, 0],
+    [0, -np.pi/2, 0, 0],
+    [0, np.pi/2, 293, 0],
+    [52.5, np.pi/2, 0, 0],
+    [77.5, np.pi/2, 342.5, 0],
+    [0, np.pi/2, 0, 0],
+    [76, -np.pi/2, 269, 0]
 ])
 
 
@@ -98,7 +98,7 @@ def translation(x, y, z):
     return H
 
 
-def transform(xyz, rpy):
+def transform(params):
     """
     The transform a URDF writes as <origin xyz="x y z" rpy="roll pitch yaw"/>:
     a translation by xyz, then a roll-pitch-yaw rotation,
@@ -112,9 +112,7 @@ def transform(xyz, rpy):
     Returns:
     np.ndarray: shape (4, 4).
     """
-    x, y, z = xyz
-    roll, pitch, yaw = rpy
-    H = np.zeros((4, 4))
+    a, alpha, d, theta = params
 
     # --------------- BEGIN STUDENT SECTION: part (a.5), offset and orientation ---------------
     # TODO (a.5): Multiply your four functions above in the order of the
@@ -122,7 +120,7 @@ def transform(xyz, rpy):
     # H = ...
 
     # Your code starts here
-    H = translation(x, y, z) @ rot_z(yaw) @ rot_y(pitch) @ rot_x(roll)
+    H = rot_x(alpha) @ translation(a, 0, 0) @ rot_z(theta) @ translation(0, 0, d)
     # Your code ends here
     # --------------- END STUDENT SECTION ------------------------------------------------
 
@@ -143,13 +141,13 @@ class Kinematics:
         Constructor: Initializes a new robot from its joint table.
 
         Parameters:
-        joints (np.ndarray): shape (n, 6), one row [x, y, z, roll, pitch, yaw]
+        joints (np.ndarray): shape (n, 4), one row [x, y, z, roll, pitch, yaw]
             per joint, as in XARM7_JOINTS above. Robot(XARM7_JOINTS) is the xArm7.
         """
         # Validate inputs (Do not modify this section)
         joints = np.asarray(joints, dtype=float)
-        if joints.ndim != 2 or joints.shape[1] != 6:
-            raise ValueError(f'Invalid joints: Should be (n, 6), is {joints.shape}.')
+        if joints.ndim != 2 or joints.shape[1] != 4:
+            raise ValueError(f'Invalid joints: Should be (n, 4), is {joints.shape}.')
 
         self.joints = joints
         self.dof = joints.shape[0]
@@ -192,7 +190,7 @@ class Kinematics:
         # then rotation by thetas
 
         for i in range(n):
-            H = transform(self.joints[i,:3], self.joints[i,3:])
+            H = transform(self.joints[i])
             frames[:, :, i+1] = frames[:, :, i] @ H @ rot_z(thetas[i])
 
         # Your code ends here
