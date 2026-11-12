@@ -8,6 +8,14 @@ def fk(robot, kinematics):
     joints = robot.joint_values
     return kinematics.forward_kinematics(joints)[:,:,-1] @ np.array([[0],[0],[0],[1]])
 
+def jacobian(robot, kinematics):
+    joints = robot.joint_values
+    frames = kinematics.forward_kinematics(joints)
+    for i in range(1,len(frames)):
+        H = frames[:,:,i]
+        R, t= H[:3,:3], H[:3,3]
+        Z = R@np.array([0,0,1])
+
 #detector = LightsaberDetector()
 with Robot() as robot:
 #    robot.register_visualizer(detector)
