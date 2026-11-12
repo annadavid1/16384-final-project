@@ -23,14 +23,22 @@ def jacobian(robot, kinematics):
 
 def pseudo(robot, kinematics):
     J = jacobian(robot, kinematics)
+    print(J)
+    print(J@J.T)
     JPlus = J.T @np.linalg.inv(J@J.T)
     return JPlus
 
-def ikDiff(robot, kinematics, dir, dis):
-    step = 1 #in mm
+def ikDiff(robot, kinematics, d, dis):
+    step = 10 #in mm
     for i in range(0, dis, step):
-        movement = (pseudo(robot, kinematics) @dir)*step
-        robot.set_joint_targets(movement)
+        joints = robot.joint_values
+        #movement = (pseudo(robot, kinematics) @dir)*step
+        movement = step*np.linalg.lstsq(jacobian(robot, kinematics), d)[0]
+        #print("MOVE:", movement.shape, movement)
+        #print("joints:", joints.shape, joints)
+        print("old:",kinematics.forward_kinematics(joints)[:,:,-1])
+        print("new:",kinematics.forward_kinematics(joints + movement)[:,:,-1])
+        robot.set_joint_targets(joints + movement)
 
 
 
@@ -43,9 +51,12 @@ with Robot() as robot:
     input("hit the key now")
     robot.end_free_drive()
     print("ended free drive")
-    ikDiff(robot, kinematics, np.array([0,0,1]),100)
-    ikDiff(robot, kinematics, np.array([0,1,0]),100)
-    ikDiff(robot, kinematics, np.array([1,0,0]),100)
+    input("hit enter to move in z")
+    ikDiff(robot, kinematics, np.array([0,0,1,0,0,0]),100)
+    input("hit enter to move in y")
+    ikDiff(robot, kinematics, np.array([0,1,0,0,0,0]),100)
+    input("hit enter to move in x")
+    ikDiff(robot, kinematics, np.array([1,0,0,0,0,0]),100)
     #while True:
      #   print(fk(robot, kinematics))
      #   time.sleep(0.5)
