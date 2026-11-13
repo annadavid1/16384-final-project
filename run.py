@@ -13,9 +13,8 @@ def jacobian(robot, kinematics):
     frames = kinematics.forward_kinematics(joints)
     J = np.zeros([6,7])
     pe = frames[:3,3, -1]
-    print(frames.shape)
     for i in range(frames.shape[2]-1):
-        H = frames[:,:,i]
+        H = frames[:,:,i+1]
         R = H[:3,:3]
         t = H[:3,3]
         Z = R@np.array([0,0,1])
@@ -31,18 +30,11 @@ def pseudo(robot, kinematics):
     return JPlus
 
 def ikDiff(robot, kinematics, d, dis):
-    step = 5  #in mm
+    step = 10  #in mm
     for i in range(0, dis, step):
         joints = robot.joint_values
-        #movement = (pseudo(robot, kinematics) @d)*step
         movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), d)
-        #print("MOVE:", movement.shape, movement)
-        #print("joints:", joints.shape, joints)
-        print("old:",kinematics.forward_kinematics(joints)[:,:,-1])
-        print("new:",kinematics.forward_kinematics(joints + step * movement)[:,:,-1])
-        robot.servo_joints(joints + step * movement)
-        time.sleep(0.05)
-
+        robot.set_joint_targets(joints + step * movement)
 
 
 #detector = LightsaberDetector()
@@ -60,6 +52,8 @@ with Robot() as robot:
     ikDiff(robot, kinematics, np.array([0,1,0,0,0,0]),100)
     input("hit enter to move in x")
     ikDiff(robot, kinematics, np.array([1,0,0,0,0,0]),100)
+    input("hit enter to rotate by pi/3")
+    ikDiff(robot, kinematics, np.array([0,0,0,0,0,1/3]), 1)
     #while True:
      #   print(fk(robot, kinematics))
      #   time.sleep(0.5)
