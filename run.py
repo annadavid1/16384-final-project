@@ -29,12 +29,12 @@ def pseudo(robot, kinematics):
     JPlus = J.T @np.linalg.inv(J@J.T)
     return JPlus
 
-def ikDiff(robot, kinematics, d, dis):
-    step = 10  #in mm
-    for i in range(0, dis, step):
+def ikDiff(robot, kinematics, d):
+    step = d / 10
+    for i in range(0, 10):
         joints = robot.joint_values
-        movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), d)
-        robot.set_joint_targets(joints + step * movement)
+        movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), step)
+        robot.set_joint_targets(joints + movement)
 
 
 #detector = LightsaberDetector()
@@ -47,13 +47,13 @@ with Robot() as robot:
     robot.end_free_drive()
     print("ended free drive")
     input("hit enter to move in z")
-    ikDiff(robot, kinematics, np.array([0,0,1,0,0,0]),100)
+    ikDiff(robot, kinematics, np.array([0,0,100,0,0,0]))
     input("hit enter to move in y")
-    ikDiff(robot, kinematics, np.array([0,1,0,0,0,0]),100)
+    ikDiff(robot, kinematics, np.array([0,100,0,0,0,0]))
     input("hit enter to move in x")
-    ikDiff(robot, kinematics, np.array([1,0,0,0,0,0]),100)
+    ikDiff(robot, kinematics, np.array([100,0,0,0,0,0]))
     input("hit enter to rotate by pi/3")
-    ikDiff(robot, kinematics, np.array([0,0,0,0,0,1/3]), 1)
+    ikDiff(robot, kinematics, np.array([0,0,0,0,0,np.pi/3]))
     #while True:
      #   print(fk(robot, kinematics))
      #   time.sleep(0.5)
