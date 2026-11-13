@@ -13,6 +13,7 @@ def jacobian(robot, kinematics):
     frames = kinematics.forward_kinematics(joints)
     J = np.zeros([6,7])
     pe = frames[:3,3, -1]
+    print(frames.shape)
     for i in range(frames.shape[2]-1):
         H = frames[:,:,i]
         R = H[:3,:3]
@@ -34,13 +35,13 @@ def ikDiff(robot, kinematics, d, dis):
     for i in range(0, dis, step):
         joints = robot.joint_values
         #movement = (pseudo(robot, kinematics) @d)*step
-        movement, _, _, _ = step*np.linalg.lstsq(jacobian(robot, kinematics), d)
+        movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), d)
         #print("MOVE:", movement.shape, movement)
         #print("joints:", joints.shape, joints)
         print("old:",kinematics.forward_kinematics(joints)[:,:,-1])
-        print("new:",kinematics.forward_kinematics(joints + movement)[:,:,-1])
-        robot.servo_joints(joints + movement)
-        time.sleep(0.01)
+        print("new:",kinematics.forward_kinematics(joints + step * movement)[:,:,-1])
+        robot.servo_joints(joints + step * movement)
+        time.sleep(0.05)
 
 
 
