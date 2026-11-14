@@ -30,38 +30,23 @@ def pseudo(robot, kinematics):
     return JPlus
 
 def ikDiff(robot, kinematics, d):
-    #start = kinematics.forward_kinematics(robot.joint_values)[:,:,-1]
-    #dmat = rot_z(d[5])@rot_y(d[4])@rot_x(d[3])
-    #target = dmat @ start
-    #target[:3,3] += d[:3]
-    #eps_pos = 5
-    #eps_rot = 0.1
+    wait = 0.1
     step = 0.1
-    #print("start:", start)
-    #print("target:", target)
-    for _ in range(100):
-        joints = robot.joint_values
-        #end = kinematics.forward_kinematics(joints)[:,:,-1]
-        #print(target-end)
-        #if np.allclose((target - end)[:3,3], 0.0, rtol=0, atol=eps_pos) and np.allclose((target - end)[:3,:3], 0.0, rtol=0, atol=eps_rot):
-        #    break
+    for _ in range(int(1/(step*wait))):
         movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), d)
         robot.set_velocity(step * movement)
         time.sleep(0.1)
     robot.set_velocity([0,0,0,0,0,0,0])
-    #print("Start:", start)
-    #print("End:", end)
-    #print("Delta:", end - start)
-    #print("Error:", target - end)
+
 
 
 #detector = LightsaberDetector()
 with Robot() as robot:
 #    robot.register_visualizer(detector)
     kinematics = Kinematics(XARM7_JOINTS)
-    print("Starting free drive. Hit 'q' to quit")
+    print("Starting free drive. Hit enter to quit")
     robot.free_drive()
-    input("hit the key now")
+    input("Starting free drive. Hit enter to quit")
     robot.end_free_drive()
     print("ended free drive")
     input("hit enter to move in z")
