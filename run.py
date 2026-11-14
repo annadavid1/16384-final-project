@@ -1,6 +1,6 @@
 from xarm7_lib import Robot
 #from libcapstone import LightsaberDetector
-from robot import Kinematics, XARM7_JOINTS
+from robot import Kinematics, XARM7_JOINTS, rot_x, rot_y, rot_z, translation
 import time
 import numpy as np
 
@@ -30,21 +30,28 @@ def pseudo(robot, kinematics):
     return JPlus
 
 def ikDiff(robot, kinematics, d):
-    start = fk(robot, kinematics)
-    epsilon = 0.01
-    step = d / 1000
+    start = kinematics.forward_kinematics(robot.joint_values)[:,:,-1]
+    dmat = rot_z(d[5])@rot_y(d[4])@rot_x(d[3])
+    target = start @ dmat
+    target[:3,3] += d[:3]
+    eps_pos = 5
+    eps_rot = 0.1
+    step = 0.05
+    print("start:", start)
+    print("target:", target)
     while True:
-        end = fk(robot, kinematics)
-        if np.allclose((start + d - end)[d != 0], 0.0, rtol=0, atol=epsilon):
-            break
         joints = robot.joint_values
-        movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), step)
-        robot.servo_joints(joints + movement)
+        end = kinematics.forward_kinematics(joints)[:,:,-1]
+        print(target-end)
+        if np.allclose((target - end)[:3,3], 0.0, rtol=0, atol=eps_pos) and np.allclose((target - end)[:3,:3], 0.0, rtol=0, atol=eps_rot):
+            break
+        movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), d)
+        robot.servo_joints(joints + step * movement)
         time.sleep(0.01)
     print("Start:", start)
     print("End:", end)
     print("Delta:", end - start)
-    print("Error:", start + d - end)
+    print("Error:", target - end)
 
 
 #detector = LightsaberDetector()
