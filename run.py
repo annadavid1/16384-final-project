@@ -30,28 +30,29 @@ def pseudo(robot, kinematics):
     return JPlus
 
 def ikDiff(robot, kinematics, d):
-    start = kinematics.forward_kinematics(robot.joint_values)[:,:,-1]
-    dmat = rot_z(d[5])@rot_y(d[4])@rot_x(d[3])
-    target = start @ dmat
-    target[:3,3] += d[:3]
-    eps_pos = 5
-    eps_rot = 0.1
-    step = 0.05
-    print("start:", start)
-    print("target:", target)
-    while True:
+    #start = kinematics.forward_kinematics(robot.joint_values)[:,:,-1]
+    #dmat = rot_z(d[5])@rot_y(d[4])@rot_x(d[3])
+    #target = dmat @ start
+    #target[:3,3] += d[:3]
+    #eps_pos = 5
+    #eps_rot = 0.1
+    step = 0.1
+    #print("start:", start)
+    #print("target:", target)
+    for _ in range(100):
         joints = robot.joint_values
-        end = kinematics.forward_kinematics(joints)[:,:,-1]
-        print(target-end)
-        if np.allclose((target - end)[:3,3], 0.0, rtol=0, atol=eps_pos) and np.allclose((target - end)[:3,:3], 0.0, rtol=0, atol=eps_rot):
-            break
+        #end = kinematics.forward_kinematics(joints)[:,:,-1]
+        #print(target-end)
+        #if np.allclose((target - end)[:3,3], 0.0, rtol=0, atol=eps_pos) and np.allclose((target - end)[:3,:3], 0.0, rtol=0, atol=eps_rot):
+        #    break
         movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), d)
-        robot.servo_joints(joints + step * movement)
-        time.sleep(0.01)
-    print("Start:", start)
-    print("End:", end)
-    print("Delta:", end - start)
-    print("Error:", target - end)
+        robot.set_velocity(step * movement)
+        time.sleep(0.1)
+    robot.set_velocity([0,0,0,0,0,0,0])
+    #print("Start:", start)
+    #print("End:", end)
+    #print("Delta:", end - start)
+    #print("Error:", target - end)
 
 
 #detector = LightsaberDetector()
