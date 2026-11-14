@@ -30,11 +30,21 @@ def pseudo(robot, kinematics):
     return JPlus
 
 def ikDiff(robot, kinematics, d):
-    step = d / 10
-    for i in range(0, 10):
+    start = fk(robot, kinematics)
+    epsilon = 0.01
+    step = d / 1000
+    while True:
+        end = fk(robot, kinematics)
+        if np.allclose((start + d - end)[d != 0], 0.0, rtol=0, atol=epsilon):
+            break
         joints = robot.joint_values
         movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), step)
-        robot.set_joint_targets(joints + movement)
+        robot.servo_joints(joints + movement)
+        time.sleep(0.01)
+    print("Start:", start)
+    print("End:", end)
+    print("Delta:", end - start)
+    print("Error:", start + d - end)
 
 
 #detector = LightsaberDetector()
