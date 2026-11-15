@@ -44,6 +44,8 @@ def ikDiff(robot, kinematics, d):
 with Robot() as robot:
 #    robot.register_visualizer(detector)
     kinematics = Kinematics(XARM7_JOINTS)
+    input("Hit enter to open the gripper")
+    robot.grip(1)
     mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence: ")
     if mode == "xyz":
         robot.free_drive()
@@ -59,15 +61,22 @@ with Robot() as robot:
         input("hit enter to rotate by pi/3")
         ikDiff(robot, kinematics, np.array([0,0,0,0,0,np.pi/3]))
     elif mode == "grasp":
-        robot.free_drive()
-        input("move the arm slightly above the lightsaber, then hit enter")
-        joints = robot.joint_angles
-        print("Current joint angles:", joints)
-        dist = input("Enter distance to descend in cm: ") * 10
+        retry = input("Hit enter to use saved joint angles. Type new to move the arm to new joint angles: ") == "new"
+        if retry:
+            robot.free_drive()
+            input("move the arm slightly above the lightsaber, then hit enter")
+            joints = robot.joint_values
+            print("Current joint angles:", joints)
+            dist = float(input("Enter distance to descend in cm: ") * 10)
+        else:
+            joints = [-0.3049, 0.321218, 0.294313, 0.632501, -0.319703, 0.321937, 0.258652]
+            dist = 50
         robot.set_joint_targets(joints)
         ikDiff(robot, kinematics, np.array([0,0,-dist,0,0,0]))
         robot.grip(0)
         ikDiff(robot, kinematics, np.array([0,0,dist,0,0,0]))
+        input("Hit enter to release the lightsaber")
+        robot.grip(1)
     #while True:
      #   print(fk(robot, kinematics))
      #   time.sleep(0.5)
