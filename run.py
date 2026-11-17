@@ -1,8 +1,12 @@
-from xarm7_lib import Robot
+from xarm7_lib import Robot, RealXArm7
 #from libcapstone import LightsaberDetector
 from robot import Kinematics, XARM7_JOINTS, rot_x, rot_y, rot_z, translation
 import time
 import numpy as np
+
+
+MAX_V = 20 # mm/s
+MAX_W = np.pi/8 # rad/s
 
 def fk(robot, kinematics):
     joints = robot.joint_values
@@ -13,29 +17,25 @@ def jacobian(robot, kinematics):
     frames = kinematics.forward_kinematics(joints)
     J = np.zeros([6,7])
     pe = frames[:3,3, -1]
-    for i in range(frames.shape[2]-1):
-        H = frames[:,:,i+1]
-        R = H[:3,:3]
-        t = H[:3,3]
-        Z = R@np.array([0,0,1])
-        J[3:, i] = Z
-        J[:3,i] = np.cross(Z, (pe-t))
+    z = frames[:3,2,1:]
+    o = frames[:3,3,1:]
+    dist = pe[:, np.newaxis] - o
+    jv = np.cross(z, dist, axis=0)
+    jw = z
+    J = np.vstack((jv, jw))
     return J
 
-def pseudo(robot, kinematics):
-    J = jacobian(robot, kinematics)
-    print(J)
-    print(J@J.T)
-    JPlus = J.T @np.linalg.inv(J@J.T)
-    return JPlus
-
 def ikDiff(robot, kinematics, d):
+    maxlinear = np.max(np.abs(d[:3]))
+    if not maxlinear: maxlinear = 0.0001
+    maxangular = np.max(np.abs(d[3:]))
+    if not maxangular: maxangular = 0.0001
     wait = 0.1
-    step = 0.1
+    step = min(MAX_V / maxlinear, MAX_W / maxangular)
     for _ in range(int(1/(step*wait))):
         movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), d)
         robot.set_velocity(step * movement)
-        time.sleep(0.1)
+        time.sleep(wait)
     robot.set_velocity([0,0,0,0,0,0,0])
 
 
@@ -48,10 +48,11 @@ with Robot() as robot:
     robot.grip(1)
     mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence: ")
     if mode == "xyz":
-        robot.free_drive()
-        input("Starting free drive. Hit enter to quit")
-        robot.end_free_drive()
-        print("ended free drive")
+        if isinstance(robot, RealXArm7):
+            robot.free_drive()
+            input("Starting free drive. Hit enter to quit")
+            robot.end_free_drive()
+            print("ended free drive")
         input("hit enter to move in z")
         ikDiff(robot, kinematics, np.array([0,0,100,0,0,0]))
         input("hit enter to move in y")
