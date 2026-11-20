@@ -8,15 +8,19 @@ import numpy as np
 MAX_V = 20 # mm/s
 MAX_W = np.pi/8 # rad/s
 
-def matrix_to_rpy(rot):
-    pitch = np.atan2(-rot[3,1], np.sqrt(rot[3,2]**2+rot[3,3]**2))
-    roll = np.atan2(rot[3,2], rot[3,3])
-    yaw = np.atan2(rot[2,1], rot[1,1])
-    return np.array([roll, pitch, yaw])
+def matrix_to_axis_angle(rot):
+    print("rot:", rot)
+    theta = np.acos(min(max((rot[0,0]+rot[1,1]+rot[2,2]-1)/2, -1), 1))
+    if theta == 0 or theta == np.pi:
+        return np.array([0, 0, 0])
+    v = 1/(2*np.sin(theta))*np.array([rot[2,1]-rot[1,2], rot[0,2]-rot[2,0], rot[1,0]-rot[0,1]])
+    print("theta:",theta)
+    print(v)
+    return theta * v
 
 def fk(joints, kinematics):
     last_frame = kinematics.forward_kinematics(joints)[:,:,-1]
-    return np.hstack([last_frame[:-1,-1], matrix_to_rpy(last_frame)])
+    return last_frame[:-1,-1], last_frame[:3,:3]
 
 def jacobian(joints, kinematics):
     frames = kinematics.forward_kinematics(joints)
@@ -44,17 +48,23 @@ def ikDiff(robot, kinematics, d):
         time.sleep(wait)
     robot.set_velocity([0,0,0,0,0,0,0])
 
-def ik(robot, kinematics, target):
-    epsilon = 0.0001
+def ik(robot, kinematics, target_pos, target_rot):
+    epsilon = 0.1
     curr = robot.joint_values
     lr = 0.01
-    for _ in range(10000):
-        delta = target - fk(curr, kinematics)
+    for i in range(10000):
+        pos, rot = fk(curr, kinematics)
+        delta = np.hstack((target_pos - pos, matrix_to_axis_angle(target_rot @ rot.T)))
+        print(matrix_to_axis_angle(target_rot @ rot.T))
+        print(delta)
         if np.linalg.norm(delta) < epsilon:
             break
         movement, _, _, _ = np.linalg.lstsq(jacobian(curr, kinematics), delta)
         update = movement * lr
         curr += update
+    print("iters:", i)
+    print(target_pos, target_rot)
+    print(fk(curr, kinematics))
     return curr
 
 
@@ -63,7 +73,7 @@ def ik(robot, kinematics, target):
 with Robot() as robot:
 #    robot.register_visualizer(detector)
     kinematics = Kinematics(XARM7_JOINTS)
-    res = ik(robot, kinematics, np.array([0.5, 0, 0, np.pi, 0, 0]))
+    res = ik(robot, kinematics, np.array([600, 0, 300]), np.array([[0, 0, 1], [0, -1, 0], [1, 0, 0]]))
     print(res)
     print(fk(res, kinematics))
     input("Hit enter to open the gripper")
