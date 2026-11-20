@@ -9,13 +9,10 @@ MAX_V = 20 # mm/s
 MAX_W = np.pi/8 # rad/s
 
 def matrix_to_axis_angle(rot):
-    print("rot:", rot)
     theta = np.acos(min(max((rot[0,0]+rot[1,1]+rot[2,2]-1)/2, -1), 1))
     if theta == 0 or theta == np.pi:
         return np.array([0, 0, 0])
     v = 1/(2*np.sin(theta))*np.array([rot[2,1]-rot[1,2], rot[0,2]-rot[2,0], rot[1,0]-rot[0,1]])
-    print("theta:",theta)
-    print(v)
     return theta * v
 
 def fk(joints, kinematics):
@@ -62,24 +59,36 @@ def ik(robot, kinematics, target_pos, target_rot):
         movement, _, _, _ = np.linalg.lstsq(jacobian(curr, kinematics), delta)
         update = movement * lr
         curr += update
-    print("iters:", i)
-    print(target_pos, target_rot)
-    print(fk(curr, kinematics))
     return curr
 
+def run_ik_positions():
+    pos1 = np.array([500, 0, 0])
+    rot1 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    pos2 = np.array([600, 0, 300])
+    rot2 = np.array([[0, 0, 1], [0, -1, 0], [1, 0, 0]])
+    pos3 = np.array([400, 200, 250])
+    rot3 = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
+    input("Hit enter to run IK for position 1")
+    joints = ik(robot, kinematics, pos1, rot1)
+    robot.set_joint_angles(joints)
+    input("Hit enter to run IK for position 2")
+    joints = ik(robot, kinematics, pos2, rot2)
+    robot.set_joint_angles(joints)
+    input("Hit enter to run IK for position 3")
+    joints = ik(robot, kinematics, pos3, rot3)
+    robot.set_joint_angles(joints)
 
 
 #detector = LightsaberDetector()
 with Robot() as robot:
 #    robot.register_visualizer(detector)
     kinematics = Kinematics(XARM7_JOINTS)
-    res = ik(robot, kinematics, np.array([600, 0, 300]), np.array([[0, 0, 1], [0, -1, 0], [1, 0, 0]]))
-    print(res)
-    print(fk(res, kinematics))
     input("Hit enter to open the gripper")
     robot.grip(1)
-    mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence: ")
-    if mode == "xyz":
+    mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence, or 'ik' to run ik positions: ").strip()
+    if mode == "ik":
+        run_ik_positions()
+    elif mode == "xyz":
         if isinstance(robot, RealXArm7):
             robot.free_drive()
             input("Starting free drive. Hit enter to quit")
