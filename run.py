@@ -8,12 +8,17 @@ import numpy as np
 MAX_V = 20 # mm/s
 MAX_W = np.pi/8 # rad/s
 
-def fk(robot, kinematics):
-    joints = robot.joint_values
-    return kinematics.forward_kinematics(joints)[:,:,-1] @ np.array([[0],[0],[0],[1]])
+def matrix_to_rpy(rot):
+    pitch = np.atan2(-rot[3,1], np.sqrt(rot[3,2]**2+rot[3,3]**2))
+    roll = np.atan2(rot[3,2], rot[3,3])
+    yaw = np.atan2(rot[2,1], rot[1,1])
+    return np.array([roll, pitch, yaw])
 
-def jacobian(robot, kinematics):
-    joints = robot.joint_values
+def fk(joints, kinematics):
+    last_frame = kinematics.forward_kinematics(joints)[:,:,-1]
+    return np.hstack([last_frame[:-1,-1], matrix_to_rpy(last_frame)])
+
+def jacobian(joints, kinematics):
     frames = kinematics.forward_kinematics(joints)
     J = np.zeros([6,7])
     pe = frames[:3,3, -1]
@@ -33,10 +38,24 @@ def ikDiff(robot, kinematics, d):
     wait = 0.1
     step = min(MAX_V / maxlinear, MAX_W / maxangular)
     for _ in range(int(1/(step*wait))):
-        movement, _, _, _ = np.linalg.lstsq(jacobian(robot, kinematics), d)
+        joints = robot.joint_values
+        movement, _, _, _ = np.linalg.lstsq(jacobian(joints, kinematics), d)
         robot.set_velocity(step * movement)
         time.sleep(wait)
     robot.set_velocity([0,0,0,0,0,0,0])
+
+def ik(robot, kinematics, target):
+    epsilon = 0.0001
+    curr = robot.joint_values
+    lr = 0.01
+    for _ in range(10000):
+        delta = target - fk(curr, kinematics)
+        if np.linalg.norm(delta) < epsilon:
+            break
+        movement, _, _, _ = np.linalg.lstsq(jacobian(curr, kinematics), delta)
+        update = movement * lr
+        curr += update
+    return curr
 
 
 
@@ -44,6 +63,9 @@ def ikDiff(robot, kinematics, d):
 with Robot() as robot:
 #    robot.register_visualizer(detector)
     kinematics = Kinematics(XARM7_JOINTS)
+    res = ik(robot, kinematics, np.array([0.5, 0, 0, np.pi, 0, 0]))
+    print(res)
+    print(fk(res, kinematics))
     input("Hit enter to open the gripper")
     robot.grip(1)
     mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence: ")

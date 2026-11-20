@@ -2,3 +2,4 @@
 __pycache__
 libcapstone
 .DS_Store
+.vscode
