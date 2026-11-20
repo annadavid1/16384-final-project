@@ -52,8 +52,6 @@ def ik(robot, kinematics, target_pos, target_rot):
     for i in range(10000):
         pos, rot = fk(curr, kinematics)
         delta = np.hstack((target_pos - pos, matrix_to_axis_angle(target_rot @ rot.T)))
-        print(matrix_to_axis_angle(target_rot @ rot.T))
-        print(delta)
         if np.linalg.norm(delta) < epsilon:
             break
         movement, _, _, _ = np.linalg.lstsq(jacobian(curr, kinematics), delta)
@@ -70,13 +68,13 @@ def run_ik_positions():
     rot3 = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
     input("Hit enter to run IK for position 1")
     joints = ik(robot, kinematics, pos1, rot1)
-    robot.set_joint_angles(joints)
+    robot.set_joint_targets(joints)
     input("Hit enter to run IK for position 2")
     joints = ik(robot, kinematics, pos2, rot2)
-    robot.set_joint_angles(joints)
+    robot.set_joint_targets(joints)
     input("Hit enter to run IK for position 3")
     joints = ik(robot, kinematics, pos3, rot3)
-    robot.set_joint_angles(joints)
+    robot.set_joint_targets(joints)
 
 
 #detector = LightsaberDetector()
