@@ -125,7 +125,7 @@ def tipFrame(color, kinematics):
 
     #find transform ee->tip by doing T^-1 (base ->ee) * T (base->tip)
     if diff1 > diff2:
-        tip, handle = lsFrames[0], lsFrames[1]
+        tip, handle = lsFrames[-1], lsFrames[1]
     else:
         tip, handle = lsFrames[1], lsFrames[0]
 
@@ -166,7 +166,7 @@ def tip_movements():
         input("move to new pose then hit enter")
 
 def writePlane(detector, color):
-    c = np.array([])
+    c= np.array([])
     for i in range(0,10,1):
         frames = detector.query(color)
         c.append([(frames[0] - frames[1])/2])
@@ -185,6 +185,10 @@ with Robot() as robot:
     kinematics = Kinematics(XARM7_JOINTS)
     input("Hit enter to open the gripper")
     robot.grip(1)
+    color = input("enter lightsaber color: ").strip()
+
+    writePlane(detector, color)
+
     mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence, or 'ik' to run ik positions, or 'tip' to run tip movements: ").strip()
     if mode == "ik":
         run_ik_positions()
