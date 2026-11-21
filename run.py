@@ -117,6 +117,19 @@ def tipFrame(color, kinematics):
     # T_ee->tip = inv(T_base->ee) @ T_base->tip
     return np.linalg.inv(eeFrame) @ T_base_tip
 
+def writePlane(detector, color):
+    c = np.array([])
+    for i in range(0,10,1):
+        frames = detector.query(color)
+        c.append([(frames[0] - frames[1])/2])
+        time.sleep(.1)
+    n = (np.linalg.eig(c.T@c))^(.5)
+    d = n*c
+    plane = n.append(d)
+    detector.draw_plane(plane)
+
+
+        
 
 detector = LightsaberDetector()
 with Robot() as robot:
@@ -173,6 +186,8 @@ with Robot() as robot:
         robot.freedrive()
         print("move to new pose")
         time.sleep(10)
+
+    writePlane(detector, color)
 
 
     #while True:
