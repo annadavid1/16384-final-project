@@ -1,5 +1,5 @@
 from xarm7_lib import Robot, RealXArm7
-#from libcapstone import LightsaberDetector
+from libcapstone import LightsaberDetector
 from robot import Kinematics, XARM7_JOINTS, rot_x, rot_y, rot_z, translation
 import time
 import numpy as np
@@ -57,11 +57,50 @@ def ik(robot, kinematics, target):
         curr += update
     return curr
 
+def tipFrame(color, kinematics):
+    #get lightsaber frames
+    lsFrames = detector.query(color)
+
+    #use forward kinematics to get end effector frames
+    eeFrame = fk(robot.joint_values,kinematics)
+
+    #find which lightsaber frame is further from the end effector frame
+    p_ee = eeFrame[:3, 3]
+    diff1 = np.linalg.norm(lsFrames[0] - p_ee)
+    diff2 = np.linalg.norm(lsFrames[1] - p_ee)
+
+    #find transform ee->tip by doing T^-1 (base ->ee) * T (base->tip)
+    if diff1 > diff2:
+        tip, handle = lsFrames[0], lsFrames[1]
+    else:
+        tip, handle = lsFrames[1], lsFrames[0]
+
+    # z axis: handle -> tip
+    z = tip - handle
+    z = z / np.linalg.norm(z)
+
+    # y axis: ee's y axis projected perpendicular to z
+    y_ee = eeFrame[:3, 1]
+    y = y_ee - np.dot(y_ee, z) * z
+    y = y / np.linalg.norm(y)
+
+    # x axis completes right-handed frame
+    x = np.cross(y, z)
+
+    # build T_base->tip
+    T_base_tip = np.eye(4)
+    T_base_tip[:3, 0] = x
+    T_base_tip[:3, 1] = y
+    T_base_tip[:3, 2] = z
+    T_base_tip[:3, 3] = tip
+
+    # T_ee->tip = inv(T_base->ee) @ T_base->tip
+    return np.linalg.inv(eeFrame) @ T_base_tip
 
 
-#detector = LightsaberDetector()
+detector = LightsaberDetector()
 with Robot() as robot:
-#    robot.register_visualizer(detector)
+    robot.register_visualizer(detector)
     kinematics = Kinematics(XARM7_JOINTS)
     res = ik(robot, kinematics, np.array([0.5, 0, 0, np.pi, 0, 0]))
     print(res)
@@ -100,6 +139,23 @@ with Robot() as robot:
         ikDiff(robot, kinematics, np.array([0,0,dist,0,0,0]))
         input("Hit enter to release the lightsaber")
         robot.grip(1)
+
+
+#lightsaber motion portion
+    color = input("enter lightsaber color: ").strip()
+
+#loop through different positions
+    for i in range(3):
+        #loop through multiple calculations
+        tipFrames = np.zeros(10)
+        for j in range(10):
+            tipFrames(j) = tipFrame(color, kinematics)
+            time.sleep(0.5)
+        robot.freedrive()
+        print("move to new pose")
+        time.sleep(10)
+
+
     #while True:
      #   print(fk(robot, kinematics))
      #   time.sleep(0.5)
