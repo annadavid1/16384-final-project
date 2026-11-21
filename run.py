@@ -8,15 +8,16 @@ import numpy as np
 MAX_V = 20 # mm/s
 MAX_W = np.pi/8 # rad/s
 
-def matrix_to_rpy(rot):
-    pitch = np.atan2(-rot[3,1], np.sqrt(rot[3,2]**2+rot[3,3]**2))
-    roll = np.atan2(rot[3,2], rot[3,3])
-    yaw = np.atan2(rot[2,1], rot[1,1])
-    return np.array([roll, pitch, yaw])
+def matrix_to_axis_angle(rot):
+    theta = np.acos(min(max((rot[0,0]+rot[1,1]+rot[2,2]-1)/2, -1), 1))
+    if theta == 0 or theta == np.pi:
+        return np.array([0, 0, 0])
+    v = 1/(2*np.sin(theta))*np.array([rot[2,1]-rot[1,2], rot[0,2]-rot[2,0], rot[1,0]-rot[0,1]])
+    return theta * v
 
 def fk(joints, kinematics):
     last_frame = kinematics.forward_kinematics(joints)[:,:,-1]
-    return np.hstack([last_frame[:-1,-1], matrix_to_rpy(last_frame)])
+    return last_frame[:-1,-1], last_frame[:3,:3]
 
 def jacobian(joints, kinematics):
     frames = kinematics.forward_kinematics(joints)
@@ -44,12 +45,13 @@ def ikDiff(robot, kinematics, d):
         time.sleep(wait)
     robot.set_velocity([0,0,0,0,0,0,0])
 
-def ik(robot, kinematics, target):
-    epsilon = 0.0001
+def ik(robot, kinematics, target_pos, target_rot):
+    epsilon = 0.1
     curr = robot.joint_values
     lr = 0.01
-    for _ in range(10000):
-        delta = target - fk(curr, kinematics)
+    for i in range(10000):
+        pos, rot = fk(curr, kinematics)
+        delta = np.hstack((target_pos - pos, matrix_to_axis_angle(target_rot @ rot.T)))
         if np.linalg.norm(delta) < epsilon:
             break
         movement, _, _, _ = np.linalg.lstsq(jacobian(curr, kinematics), delta)
@@ -57,6 +59,25 @@ def ik(robot, kinematics, target):
         curr += update
     return curr
 
+def run_ik_positions():
+    pos1 = np.array([500, 0, 0])
+    rot1 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
+    pos2 = np.array([600, 0, 300])
+    rot2 = np.array([[0, 0, 1], [0, -1, 0], [1, 0, 0]])
+    pos3 = np.array([400, 200, 250])
+    rot3 = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
+    input("Hit enter to run IK for position 1")
+    joints = ik(robot, kinematics, pos1, rot1)
+    robot.set_joint_targets(joints)
+    input("Hit enter to run IK for position 2")
+    joints = ik(robot, kinematics, pos2, rot2)
+    robot.set_joint_targets(joints)
+    input("Hit enter to run IK for position 3")
+    joints = ik(robot, kinematics, pos3, rot3)
+    robot.set_joint_targets(joints)
+
+
+#detector = LightsaberDetector()
 def tipFrame(color, kinematics):
     #get lightsaber frames
     lsFrames = detector.query(color)
@@ -102,13 +123,12 @@ detector = LightsaberDetector()
 with Robot() as robot:
     robot.register_visualizer(detector)
     kinematics = Kinematics(XARM7_JOINTS)
-    res = ik(robot, kinematics, np.array([0.5, 0, 0, np.pi, 0, 0]))
-    print(res)
-    print(fk(res, kinematics))
     input("Hit enter to open the gripper")
     robot.grip(1)
-    mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence: ")
-    if mode == "xyz":
+    mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence, or 'ik' to run ik positions: ").strip()
+    if mode == "ik":
+        run_ik_positions()
+    elif mode == "xyz":
         if isinstance(robot, RealXArm7):
             robot.free_drive()
             input("Starting free drive. Hit enter to quit")
