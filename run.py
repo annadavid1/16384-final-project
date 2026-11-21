@@ -77,7 +77,6 @@ def run_ik_positions():
     robot.set_joint_targets(joints)
 
 
-#detector = LightsaberDetector()
 def tipFrame(color, kinematics):
     #get lightsaber frames
     lsFrames = detector.query(color)
@@ -169,7 +168,7 @@ with Robot() as robot:
         #loop through multiple calculations
         tipFrames = np.zeros(10)
         for j in range(10):
-            tipFrames(j) = tipFrame(color, kinematics)
+            tipFrames[j] = tipFrame(color, kinematics)
             time.sleep(0.5)
         robot.freedrive()
         print("move to new pose")
