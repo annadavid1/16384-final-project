@@ -96,8 +96,6 @@ def grasp_lightsaber():
     ikDiff(robot, kinematics, np.array([0,0,-dist,0,0,0]))
     robot.grip(0)
     ikDiff(robot, kinematics, np.array([0,0,dist,0,0,0]))
-    input("Hit enter to release the lightsaber")
-    robot.grip(1)
 
 def xyz_translation():
     if isinstance(robot, RealXArm7):
@@ -119,10 +117,9 @@ def tipFrame(color, kinematics):
     lsFrames = detector.query(color)
 
     #use forward kinematics to get end effector frames
-    eeFrame = fk(robot.joint_values,kinematics)
+    p_ee, rot_ee = fk(robot.joint_values,kinematics)
 
     #find which lightsaber frame is further from the end effector frame
-    p_ee = eeFrame[:3, 3]
     diff1 = np.linalg.norm(lsFrames[0] - p_ee)
     diff2 = np.linalg.norm(lsFrames[1] - p_ee)
 
@@ -137,7 +134,7 @@ def tipFrame(color, kinematics):
     z = z / np.linalg.norm(z)
 
     # y axis: ee's y axis projected perpendicular to z
-    y_ee = eeFrame[:3, 1]
+    y_ee = rot_ee[:, 1]
     y = y_ee - np.dot(y_ee, z) * z
     y = y / np.linalg.norm(y)
 
@@ -152,7 +149,7 @@ def tipFrame(color, kinematics):
     T_base_tip[:3, 3] = tip
 
     # T_ee->tip = inv(T_base->ee) @ T_base->tip
-    return np.linalg.inv(eeFrame) @ T_base_tip
+    return np.vstack((np.hstack((rot_ee.T, -rot_ee.T @ p_ee[:, np.newaxis])), np.array([[0,0,0,1]]))) @ T_base_tip
 
 def tip_movements():
     grasp_lightsaber()
@@ -162,13 +159,11 @@ def tip_movements():
     #loop through different positions
     for i in range(3):
         #loop through multiple calculations
-        tipFrames = np.zeros(10)
+        tipFrames = np.zeros((4, 4, 10))
         for j in range(10):
-            tipFrames[j] = tipFrame(color, kinematics)
-            time.sleep(0.5)
-        robot.freedrive()
-        print("move to new pose")
-        time.sleep(10)
+            tipFrames[:, :, j] = tipFrame(color, kinematics)
+        robot.free_drive()
+        input("move to new pose then hit enter")
 
 
 detector = LightsaberDetector()
