@@ -204,16 +204,25 @@ def tip_movements():
 
 def writePlane(detector, color):
     c = np.empty((0,3))
-    for i in range(0,30,1):
-        frames = detector.query(color)
+    for i in range(0,10,1):
+        frames = None
+        while frames is None:
+            frames = detector.query(color)
         c= np.append(c,[(frames[0] + frames[1])/2], axis =0)
-        time.sleep(.1)
-    center =c-np.mean(c, axis=0)
+        time.sleep(.5)
+    center =abs(c-np.mean(c, axis=0))
     _,_,V= np.linalg.svd(center)
     n=V[-1,:]
-    d= np.dot(n,center)
+    centroid = np.mean(center, axis=0)
+    print("n:", n)
+    print(center)
+    print("centroid:", centroid)
+    d= np.dot(centroid, n)
     plane = np.append(n,d)
+    print(d)
     detector.draw_plane(plane)
+    end = input("press enter to end plane")
+    if end != None: print("end")
 
 
         
