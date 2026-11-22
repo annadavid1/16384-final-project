@@ -210,7 +210,8 @@ def writePlane(detector, color):
             frames = detector.query(color)
         c= np.append(c,[(frames[0] + frames[1])/2], axis =0)
         time.sleep(.5)
-    center =abs(c-np.mean(c, axis=0))
+    #center =abs(c-np.mean(c, axis=0))
+    center = c
     _,_,V= np.linalg.svd(center)
     n=V[-1,:]
     centroid = np.mean(center, axis=0)
