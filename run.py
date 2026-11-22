@@ -5,7 +5,7 @@ import time
 import numpy as np
 
 
-MAX_V = 20 # mm/s
+MAX_V = 10 # mm/s
 MAX_W = np.pi/8 # rad/s
 
 def matrix_to_axis_angle(rot):
@@ -114,8 +114,9 @@ def xyz_translation():
 
 def tipFrame(color, kinematics):
     #get lightsaber frames
-    lsFrames = detector.query(color)
-
+    lsFrames = None
+    while lsFrames is None:
+        lsFrames = detector.query(color)
     #use forward kinematics to get end effector frames
     p_ee, rot_ee = fk(robot.joint_values,kinematics)
 
@@ -221,12 +222,11 @@ with Robot() as robot:
     kinematics = Kinematics(XARM7_JOINTS)
     input("Hit enter to open the gripper")
     robot.grip(1)
-    color = input("enter lightsaber color: ").strip()
-
-    writePlane(detector, color)
-
-    mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence, or 'ik' to run ik positions, or 'tip' to run tip movements: ").strip()
-    if mode == "ik":
+    mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence, or 'ik' to run ik positions, or 'tip' to run tip movements or 'plane': ").strip()
+    if mode == 'plane':
+        color = input('enter lightsaber color: ').strip()
+        writePlane(detector, color)
+    elif mode == "ik":
         run_ik_positions()
     elif mode == "tip":
         tip_movements()
