@@ -166,14 +166,16 @@ def tip_movements():
         input("move to new pose then hit enter")
 
 def writePlane(detector, color):
-    c = np.array([])
-    for i in range(0,10,1):
+    c = np.empty((0,3))
+    for i in range(0,30,1):
         frames = detector.query(color)
-        c.append([(frames[0] - frames[1])/2])
+        c= np.append(c,[(frames[0] + frames[1])/2], axis =0)
         time.sleep(.1)
-    n = (np.linalg.eig(c.T@c))^(.5)
-    d = n*c
-    plane = n.append(d)
+    center =c-np.mean(c, axis=0)
+    _,_,V= np.linalg.svd(center)
+    n=V[-1,:]
+    d= np.dot(n,center)
+    plane = np.append(n,d)
     detector.draw_plane(plane)
 
 
