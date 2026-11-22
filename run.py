@@ -125,7 +125,7 @@ def tipFrame(color, kinematics):
 
     #find transform ee->tip by doing T^-1 (base ->ee) * T (base->tip)
     if diff1 > diff2:
-        tip, handle = lsFrames[0], lsFrames[1]
+        tip, handle = lsFrames[-1], lsFrames[1]
     else:
         tip, handle = lsFrames[1], lsFrames[0]
 
@@ -151,19 +151,55 @@ def tipFrame(color, kinematics):
     # T_ee->tip = inv(T_base->ee) @ T_base->tip
     return np.vstack((np.hstack((rot_ee.T, -rot_ee.T @ p_ee[:, np.newaxis])), np.array([[0,0,0,1]]))) @ T_base_tip
 
+def record_pose(color, n=10, delay=0.1):
+    Ts = np.zeros((n, 4, 4))
+    for j in range(n):
+        Ts[j] = tipFrame(color, kinematics)
+        time.sleep(delay)
+    print("translation std across samples (mm):", Ts[:, :3, 3].std(axis=0))
+
+    T = np.eye(4)
+    T[:3, 3] = Ts[:, :3, 3].mean(axis=0)
+    U, _, Vt = np.linalg.svd(Ts[:, :3, :3].mean(axis=0))
+    T[:3, :3] = U @ Vt
+    return T
+
+def saber_alignment(T_ee_tip, axis):
+    _, rot_ee = fk(robot.joint_values, kinematics)
+    saber_dir = rot_ee @ T_ee_tip[:3, 2]
+    return abs(np.dot(saber_dir, axis))
+
 def tip_movements():
     grasp_lightsaber()
     #lightsaber motion portion
     color = input("enter lightsaber color: ").strip()
+    results = {}
+    results["grasped"] = record_pose(color)
 
-    #loop through different positions
-    for i in range(3):
-        #loop through multiple calculations
-        tipFrames = np.zeros((4, 4, 10))
-        for j in range(10):
-            tipFrames[:, :, j] = tipFrame(color, kinematics)
-        robot.free_drive()
-        input("move to new pose then hit enter")
+    targets = [
+        ("horizontal", np.array([0, 1, 0]),
+         "Hold the saber horizontal, along the left-right direction, then hit enter"),
+        ("vertical", np.array([0, 0, 1]),
+         "Hold the saber vertical, then hit enter"),
+    ]
+    for label, axis, msg in targets:
+        while True:
+            robot.free_drive()
+            input(msg)
+            robot.end_free_drive()
+            T = record_pose(color)
+            align = saber_alignment(T, axis)
+            print(f"{label}: alignment with target axis = {align:.3f}")
+            if align > 0.95 or input("Not well aligned. Type ok to keep, or hit enter to redo: ").strip() == "ok":
+                break
+        results[label] = T
+
+    ref = results["grasped"]
+    for label, T in results.items():
+        dp = np.linalg.norm(T[:3, 3] - ref[:3, 3])
+        dr = np.linalg.norm(matrix_to_axis_angle(ref[:3, :3].T @ T[:3, :3]))
+        print(f"{label}: T_ee->tip =\n{T}\n  vs grasped: {dp:.1f} mm, {np.degrees(dr):.1f} deg")
+    return results
 
 def writePlane(detector, color):
     c = np.empty((0,3))
@@ -187,6 +223,10 @@ with Robot() as robot:
     kinematics = Kinematics(XARM7_JOINTS)
     input("Hit enter to open the gripper")
     robot.grip(1)
+    color = input("enter lightsaber color: ").strip()
+
+    writePlane(detector, color)
+
     mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence, or 'ik' to run ik positions, or 'tip' to run tip movements: ").strip()
     if mode == "ik":
         run_ik_positions()
