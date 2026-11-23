@@ -88,7 +88,7 @@ def grasp_lightsaber():
         input("move the arm slightly above the lightsaber, then hit enter")
         joints = robot.joint_values
         print("Current joint angles:", joints)
-        dist = float(input("Enter distance to descend in cm: ") * 10)
+        dist = float(input("Enter distance to descend in cm: ")) * 10
     else:
         joints = [-0.3049, 0.321218, 0.294313, 0.632501, -0.319703, 0.321937, 0.258652]
         dist = 50
