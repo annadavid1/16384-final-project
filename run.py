@@ -49,25 +49,25 @@ def ikDiff(robot, kinematics, d):
     robot.set_joint_targets(robot.joint_values)
 
 def ik(robot, kinematics, target_pos, target_rot):
-    epsilon = 0.1
+    epsilon_pos = 0.1
+    epsilon_rot = 0.01
     curr = robot.joint_values
     lr = 0.01
+    limits = robot.joint_limits
     for _ in range(10000):
         pos, rot = fk(curr, kinematics)
         delta = np.hstack((target_pos - pos, matrix_to_axis_angle(target_rot @ rot.T)))
-        if np.linalg.norm(delta) < epsilon:
+        if np.linalg.norm(delta[:3]) < epsilon_pos and np.linalg.norm(delta[3:]) < epsilon_rot:
             break
         movement, _, _, _ = np.linalg.lstsq(jacobian(curr, kinematics), delta)
         update = movement * lr
         curr += update
-    limits = robot.joint_limits
-    for i in range(7):
-        while curr[i] < limits[i,0]:
-            curr[i] += 2*np.pi
-        while curr[i] > limits[i,1]:
-            curr[i] -= 2*np.pi
-        if curr[i] < limits[i,0]:
-            print("ik outside joint limits")
+        for i in range(7):
+            curr[i] = np.clip(
+                curr[i],
+                limits[i, 0],
+                limits[i, 1]
+            )
     return curr
 
 def run_ik_positions():
@@ -166,16 +166,6 @@ def tipFrame(color, kinematics):
     # T_ee->tip = inv(T_base->ee) @ T_base->tip
     return np.vstack((np.hstack((rot_ee.T, -rot_ee.T @ p_ee[:, np.newaxis])), np.array([[0,0,0,1]]))) @ T_base_tip
 
-def record_pose(color, n=10, delay=0.1):
-    Ts = np.zeros((n, 4, 4))
-    T = tipFrame(color,Kinematics(XARM7_JOINTS))
-    return T
-
-def saber_alignment(T_ee_tip, axis):
-    _, rot_ee = fk(robot.joint_values, kinematics)
-    saber_dir = rot_ee @ T_ee_tip[:3, 2]
-    return abs(np.dot(saber_dir, axis))
-
 def tip_movements(robot):
     color = None
     # grasp_lightsaber()
@@ -210,9 +200,6 @@ def tip_movements(robot):
     Tee = Ttip @ Ttpee
     horzJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
     robot.set_joint_targets(horzJoints)
-
-
-    return results
 
 def writePlane(detector, color):
     c = np.empty((0,3))
