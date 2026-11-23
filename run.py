@@ -60,11 +60,14 @@ def ik(robot, kinematics, target_pos, target_rot):
         movement, _, _, _ = np.linalg.lstsq(jacobian(curr, kinematics), delta)
         update = movement * lr
         curr += update
+    limits = robot.joint_limits
     for i in range(7):
-        while curr[i] < -np.pi:
+        while curr[i] < limits[i,0]:
             curr[i] += 2*np.pi
-        while curr[i] > np.pi:
+        while curr[i] > limits[i,1]:
             curr[i] -= 2*np.pi
+        if curr[i] < limits[i,0]:
+            print("ik outside joint limits")
     return curr
 
 def run_ik_positions():
@@ -130,7 +133,7 @@ def tipFrame(color, kinematics):
 
     #find transform ee->tip by doing T^-1 (base ->ee) * T (base->tip)
     if diff1 > diff2:
-        tip, handle = lsFrames[-1], lsFrames[1]
+        tip, handle = lsFrames[0], lsFrames[1]
     else:
         tip, handle = lsFrames[1], lsFrames[0]
 
