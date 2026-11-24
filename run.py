@@ -177,8 +177,8 @@ def tip_movements(robot):
 
 
     #get into initial postition and find joint angles
-    input("hit enter to move 200mm in z")
-    ikDiff(robot, kinematics, np.array([0,0,200,0,0,0]))
+    input("hit enter to move 150mm in z")
+    ikDiff(robot, kinematics, np.array([0,0,150,0,0,0]))
     time.sleep(1)
     
 
@@ -207,7 +207,7 @@ def tip_movements(robot):
 
     #move to vertical position
     robot.set_joint_targets(vertJoints)
-    time.sleep(10)
+    time.sleep(8)
 
 
     # Ttip = np.vstack((np.hstack((rot, pos[:,np.newaxis])), np.array([0,0,0,1])))
@@ -217,8 +217,6 @@ def tip_movements(robot):
     # vertJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
     # robot.set_joint_targets(vertJoints)
     # print(pos)
-
-    time.sleep(10)
 
     
     #find stuff for horizontal
@@ -242,7 +240,7 @@ def tip_movements(robot):
     horzJoints = ik(robot, kinematics, eePos, targetRot)
     input("hit enter to move to horizontal")
     robot.set_joint_targets(horzJoints)
-    time.sleep(10)
+    time.sleep(5)
 
 
     
