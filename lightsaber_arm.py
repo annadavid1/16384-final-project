@@ -386,6 +386,7 @@ def new_tip_movements():
     along = off @ T_ee_tip[:3, 2]
     perp = np.linalg.norm(off - along * T_ee_tip[:3, 2])
     f = detector.query(color)
+    
     if f is not None:
         print("saber length (detector):", np.linalg.norm(f[0] - f[1]))
     print("ee->tip offset norm:", np.linalg.norm(off), " along saber:", along, " perpendicular:", perp)

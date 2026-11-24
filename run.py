@@ -172,34 +172,48 @@ def tip_movements(robot):
     #lightsaber motion portion
     color = input("enter lightsaber color: ").strip()
 
-    # results = {}
-    # results["grasped"] = record_pose(color)
     Teetp = tipFrame(color, kinematics)
-    norm = np.linalg.norm(Teetp[:3,3])
-    print("norm")
-    print(norm)
-    # vertPose = np.array([-0.346402,  0.878735,  0.088927,  0.798585, -0.305149, -1.575839, -0.075414])
-    # pos, _ = fk(vertPose, kinematics)
 
-    pos = np.array([572.80119189, -76.42351284, 420.50237615])
-    rot = np.array([[1, 0, 0],[0, 1, 0],[0, 0, 1]]) # no rotation
-    Ttip = np.vstack((np.hstack((rot, pos[:,np.newaxis])), np.array([0,0,0,1])))
-    Ttpee = np.linalg.inv(Teetp)
-    Tee = Ttip @ Ttpee
-    print(Tee)
-    vertJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
+    #get into initial postition and find joint angles
+    input("hit enter to move 200mm in z")
+    ikDiff(robot, kinematics, np.array([0,0,200,0,0,0]))
+    time.sleep(1)
+    eeJoints = np.array(robot.joint_value,float)
+
+    #find joint angles necessary for vertical
+    eePos = fk(eeJoints, kinematics)
+    saberForm =  Teetp[:3,2] * -1 #CHANGE FOR MILESTONE 3, hardcoding which way saber is pointed
+
+    #this bit might be weird
+    d0 = fk(eePos, kinematics)[1] @ saberForm
+    vertJoints = ik(robot, kinematics, d0, np.array[0,0,1])
     robot.set_joint_targets(vertJoints)
+    time.sleep(10)
+
+    #find stuff for horizontal
+    horzJoints = ik(robot, kinematics, d0, np.array[0,1,0])
+    robot.set_joint_targets(vertJoints)
+    time.sleep(10)
+
+
+    # Ttip = np.vstack((np.hstack((rot, pos[:,np.newaxis])), np.array([0,0,0,1])))
+    # Ttpee = np.linalg.inv(Teetp)
+    # Tee = Ttip @ Ttpee
+    # print(Tee)
+    # vertJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
+    # robot.set_joint_targets(vertJoints)
     # print(pos)
-    horzPose = np.array([-0.345104,  0.878735,  0.063695,  0.793129, -0.30527,  -1.575508, -1.666837])
-    pos, _ = fk(horzPose, kinematics)
-    # pos = np.array([ 280.38120849, -306.56541326,   17.77073711])
-    print(pos)
-    rot = np.array([[1, 0, 0],[0, 0, 1],[0, -1, 0]]) # -90 degrees about x
-    Ttip = np.vstack((np.hstack((rot, pos[:,np.newaxis])), np.array([0,0,0,1])))
-    Ttpee = np.linalg.inv(Teetp)
-    Tee = Ttip @ Ttpee
-    horzJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
-    robot.set_joint_targets(horzJoints)
+
+    # horzPose = np.array([-0.345104,  0.878735,  0.063695,  0.793129, -0.30527,  -1.575508, -1.666837])
+    # pos, _ = fk(horzPose, kinematics)
+    # # pos = np.array([ 280.38120849, -306.56541326,   17.77073711])
+    # print(pos)
+    # rot = np.array([[1, 0, 0],[0, 0, 1],[0, -1, 0]]) # -90 degrees about x
+    # Ttip = np.vstack((np.hstack((rot, pos[:,np.newaxis])), np.array([0,0,0,1])))
+    # Ttpee = np.linalg.inv(Teetp)
+    # Tee = Ttip @ Ttpee
+    # horzJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
+    # robot.set_joint_targets(horzJoints)
 
 def writePlane(detector, color):
     c = np.empty((0,3))
