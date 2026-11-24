@@ -45,8 +45,7 @@ def ikDiff(robot, kinematics, d):
         movement, _, _, _ = np.linalg.lstsq(jacobian(joints, kinematics), d)
         robot.set_velocity(step * movement, duration = 0.1)
         time.sleep(wait)
-    #robot.set_velocity([0,0,0,0,0,0,0])
-    robot.set_joint_targets(robot.joint_values)
+    robot.set_joint_targets(robot.joint_values) # sets velocity to 0
 
 def ik(robot, kinematics, target_pos, target_rot):
     epsilon_pos = 0.1
@@ -62,7 +61,7 @@ def ik(robot, kinematics, target_pos, target_rot):
         movement, _, _, _ = np.linalg.lstsq(jacobian(curr, kinematics), delta)
         update = movement * lr
         curr += update
-        for i in range(7):
+        for i in range(7): # clip at limits
             curr[i] = np.clip(
                 curr[i],
                 limits[i, 0],
@@ -79,13 +78,13 @@ def run_ik_positions():
     rot3 = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]])
     input("Hit enter to run IK for position 1")
     joints = ik(robot, kinematics, pos1, rot1)
-    robot.set_joint_targets(joints)
+    robot.set_joint_targets(joints, wait=True)
     input("Hit enter to run IK for position 2")
     joints = ik(robot, kinematics, pos2, rot2)
-    robot.set_joint_targets(joints)
+    robot.set_joint_targets(joints, wait=True)
     input("Hit enter to run IK for position 3")
     joints = ik(robot, kinematics, pos3, rot3)
-    robot.set_joint_targets(joints)
+    robot.set_joint_targets(joints, wait=True)
 
 def grasp_lightsaber():
     input("Hit enter to open the gripper")
@@ -98,15 +97,15 @@ def grasp_lightsaber():
         print("Current joint angles:", joints)
         dist = float(input("Enter distance to descend in cm: ")) * 10
     else:
-        joints = [0, 0, 0, 0, 0, 0, 0] # [-0.3049, 0.321218, 0.294313, 0.632501, -0.319703, 0.321937, 0.258652]
+        joints = [0, 0, 0, 0, 0, 0, 0] # home pose
         dist = 10
-    robot.set_joint_targets(joints)
+    robot.set_joint_targets(joints, wait=True)
     ikDiff(robot, kinematics, np.array([0,0,-dist,0,0,0]))
     robot.grip(0)
     ikDiff(robot, kinematics, np.array([0,0,dist+50,0,0,0]))
 
 def xyz_translation():
-    if isinstance(robot, RealXArm7):
+    if isinstance(robot, RealXArm7): # only run free drive on real arm
         robot.free_drive()
         input("Starting free drive. Hit enter to quit")
         robot.end_free_drive()
@@ -124,11 +123,8 @@ def tipFrame(color, kinematics):
     #get lightsaber frames
     lsFrames = None
     while lsFrames is None:
-        print("HELP")
         lsFrames = detector.query(color)
-        print("lsFrames", lsFrames)
-    print(lsFrames.shape)
-    #lsFrames *= 1000
+
     #use forward kinematics to get end effector frames
     p_ee, rot_ee = fk(robot.joint_values,kinematics)
 
@@ -161,34 +157,28 @@ def tipFrame(color, kinematics):
     T_base_tip[:3, 2] = z
     T_base_tip[:3, 3] = tip
 
-    print(T_base_tip[:3,:3] @ T_base_tip[:3,:3].T)
-
     # T_ee->tip = inv(T_base->ee) @ T_base->tip
     return np.vstack((np.hstack((rot_ee.T, -rot_ee.T @ p_ee[:, np.newaxis])), np.array([[0,0,0,1]]))) @ T_base_tip
 
 def tip_movements(robot):
     color = None
-    # grasp_lightsaber()
-    #lightsaber motion portion
     color = input("enter lightsaber color: ").strip()
 
+    # get transform
     Teetp = tipFrame(color, kinematics)
 
-
-
     #get into initial postition and find joint angles
-    input("hit enter to move 150mm in z")
+    input("hit enter to move up 150mm in z (to clear the table in next move)")
     ikDiff(robot, kinematics, np.array([0,0,150,0,0,0]))
-    time.sleep(1)
+    # time.sleep(1) # I don't think this is needed since ikDiff won't return until done, but unteseted without
     
-
     #find joint angles necessary for vertical
     eeJoints = np.array(robot.joint_values,dtype = float)
     eePos , eeRot = fk(eeJoints, kinematics)
 
     saberForm =  Teetp[:3,2] * -1 #CHANGE FOR MILESTONE 3, hardcoding which way saber is pointed
 
-    #this bit might be weird
+    #gets saber z axis in base frame
     d0 = eeRot @ saberForm
     targetDir = np.array([0,0,1], dtype = float)
 
@@ -206,18 +196,8 @@ def tip_movements(robot):
     input("hit enter to move to vertical")
 
     #move to vertical position
-    robot.set_joint_targets(vertJoints)
-    time.sleep(8)
-
-
-    # Ttip = np.vstack((np.hstack((rot, pos[:,np.newaxis])), np.array([0,0,0,1])))
-    # Ttpee = np.linalg.inv(Teetp)
-    # Tee = Ttip @ Ttpee
-    # # print(Tee)
-    # vertJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
-    # robot.set_joint_targets(vertJoints)
-    # print(pos)
-
+    robot.set_joint_targets(vertJoints, wait=True)
+    # time.sleep(8) # I dont think this is needed since wait=True but untested without
     
     #find stuff for horizontal
     eeJoints = np.array(robot.joint_values,dtype = float)
@@ -239,22 +219,8 @@ def tip_movements(robot):
     targetRot = Ralign @ eeRot
     horzJoints = ik(robot, kinematics, eePos, targetRot)
     input("hit enter to move to horizontal")
-    robot.set_joint_targets(horzJoints)
-    time.sleep(5)
-
-
-    
-
-    # horzPose = np.array([-0.345104,  0.878735,  0.063695,  0.793129, -0.30527,  -1.575508, -1.666837])
-    # pos, _ = fk(horzPose, kinematics)
-    # # pos = np.array([ 280.38120849, -306.56541326,   17.77073711])
-    # print(pos)
-    # rot = np.array([[1, 0, 0],[0, 0, 1],[0, -1, 0]]) # -90 degrees about x
-    # Ttip = np.vstack((np.hstack((rot, pos[:,np.newaxis])), np.array([0,0,0,1])))
-    # Ttpee = np.linalg.inv(Teetp)
-    # Tee = Ttip @ Ttpee
-    # horzJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
-    # robot.set_joint_targets(horzJoints)
+    robot.set_joint_targets(horzJoints, wait=True)
+    # time.sleep(5) # I dont think this is needed since wait=True but untested without
 
 def writePlane(detector, color):
     c = np.empty((0,3))
@@ -274,35 +240,35 @@ def writePlane(detector, color):
     detector.draw_plane(plane)
     print("Plane equation: ", n, " * x = ",-d)
     print("Normal is: ", n, "d is ", -d*100, "mm")
-    end = input("press enter to end plane")
-    
+    input("press enter to end plane")
 
-
-
-        
-
-detector = LightsaberDetector()
 with Robot() as robot:
-    robot.register_visualizer(detector)
-    mode = input("Enter 'xyz' to run the translation sequence or 'grasp' to run the grasp sequence, or 'ik' to run ik positions, or 'tip' to run tip movements or 'plane': ").strip()
-    if mode == 'plane':
-        color = input('enter lightsaber color: ').strip()
-        writePlane(detector, color)
-    elif mode == "ik":
-        run_ik_positions()
-    elif mode == "tip":
-        tip_movements(robot)
-    elif mode == "xyz":
-        xyz_translation()
-    elif mode == "grasp":
-        grasp_lightsaber()
+    if isinstance(robot, RealXArm7):
+        detector = LightsaberDetector()
+        robot.register_visualizer(detector)
+    while True:
+        mode = input("Select a mode:\n" \
+        "    'xyz': run translation sequence\n" \
+        "    'grasp': run grasp sequence\n" \
+        "    'ik': run ik positions\n" \
+        "    'tip': run tip movements\n" \
+        "    'plane': run write plane\n"
+        "MODE: ").strip()
+        if mode == 'plane':
+            color = input('enter lightsaber color: ').strip()
+            writePlane(detector, color)
+        elif mode == "ik":
+            run_ik_positions()
+        elif mode == "tip":
+            tip_movements(robot)
+        elif mode == "xyz":
+            xyz_translation()
+        elif mode == "grasp":
+            grasp_lightsaber()
+        else:
+            print("No valid mode selected. Exiting")
+            break
+        print(f"Completed '{mode}'\n")
 
-    #writePlane(detector, color)
-
-
-    #while True:
-     #   print(fk(robot, kinematics))
-     #   time.sleep(0.5)
-   # print("ended free drive")
 
     
