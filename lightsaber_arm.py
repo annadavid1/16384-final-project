@@ -15,7 +15,7 @@ NEW_LO = np.array([-2*np.pi, -2.059, -2*np.pi, -0.192, -2*np.pi, -1.693, -2*np.p
 NEW_HI = np.array([ 2*np.pi,  2.094,  2*np.pi,  3.927,  2*np.pi,  np.pi,  2*np.pi]) - 0.02
 
 # ---- tuning for the new pipeline ----
-NEW_LIFT_MM = 150     # extra lift after grasping, so the saber can swing clear of the table
+NEW_LIFT_MM = 200     # extra lift after grasping, so the saber can swing clear of the table
 NEW_POS_TOL = 0.5     # mm; raise to 50-100 to let the ee drift if IK can't hold position
 NEW_AXIS_TOL = 0.01   # rad on the saber axis
 NEW_FLIP_SABER = True   # True if the code's "tip" end is actually the hilt end
