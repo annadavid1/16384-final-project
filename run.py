@@ -7,7 +7,7 @@ import numpy as np
 kinematics = Kinematics(XARM7_JOINTS)
 robot = None
 
-MAX_V = 10 # mm/s
+MAX_V = 15 # mm/s
 MAX_W = np.pi/8 # rad/s
 
 def matrix_to_axis_angle(rot):
