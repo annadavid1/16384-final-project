@@ -18,6 +18,7 @@ NEW_HI = np.array([ 2*np.pi,  2.094,  2*np.pi,  3.927,  2*np.pi,  np.pi,  2*np.p
 NEW_LIFT_MM = 150     # extra lift after grasping, so the saber can swing clear of the table
 NEW_POS_TOL = 0.5     # mm; raise to 50-100 to let the ee drift if IK can't hold position
 NEW_AXIS_TOL = 0.01   # rad on the saber axis
+NEW_FLIP_SABER = True   # True if the code's "tip" end is actually the hilt end
 
 
 # =====================================================================
@@ -344,7 +345,8 @@ def new_ik_axis(robot, kinematics, target_pos, saber_local, axis, seed,
 def new_orient_saber(axis, T_ee_tip, seed):
     """Joints that put the saber's long axis along `axis`, holding the ee position."""
     p_ee, _ = fk(seed, kinematics)
-    return new_ik_axis(robot, kinematics, p_ee, T_ee_tip[:3, 2], axis, seed)
+    saber_local = T_ee_tip[:3, 2] * (-1.0 if NEW_FLIP_SABER else 1.0)
+    return new_ik_axis(robot, kinematics, p_ee, saber_local, axis, seed)
 
 
 def new_saber_axis_error_deg(joints, T_ee_tip, axis):
