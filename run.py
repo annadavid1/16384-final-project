@@ -128,7 +128,7 @@ def tipFrame(color, kinematics):
         lsFrames = detector.query(color)
         print("lsFrames", lsFrames)
     print(lsFrames.shape)
-    lsFrames *= 1000
+    #lsFrames *= 1000
     #use forward kinematics to get end effector frames
     p_ee, rot_ee = fk(robot.joint_values,kinematics)
 
@@ -174,6 +174,8 @@ def tip_movements(robot):
 
     Teetp = tipFrame(color, kinematics)
 
+
+
     #get into initial postition and find joint angles
     input("hit enter to move 200mm in z")
     ikDiff(robot, kinematics, np.array([0,0,200,0,0,0]))
@@ -181,20 +183,29 @@ def tip_movements(robot):
     
 
     #find joint angles necessary for vertical
-    eeJoints = np.array(robot.joint_value,float)
-    eePos = fk(eeJoints, kinematics)
+    eeJoints = np.array(robot.joint_values,dtype = float)
+    eePos , eeRot = fk(eeJoints, kinematics)
+
     saberForm =  Teetp[:3,2] * -1 #CHANGE FOR MILESTONE 3, hardcoding which way saber is pointed
 
     #this bit might be weird
-    d0 = fk(eePos, kinematics)[1] @ saberForm
-    vertJoints = ik(robot, kinematics, d0, np.array[0,0,1])
+    d0 = eeRot @ saberForm
+    targetDir = np.array([0,0,1], dtype = float)
+
+    # Calculate rotation needed to align saber with vertical
+    v = np.cross(d0, targetDir)
+    c = np.dot(d0, targetDir)
+    s = np.linalg.norm(v)
+
+    vx = np.array([[0, -v[2], v[1]],
+                   [v[2], 0, -v[0]],
+                   [-v[1], v[0], 0]])
+    Ralign = np.eye(3) + vx + vx @ vx * ((1-c)/(s**2))
+    targetRot = Ralign @ eeRot
+    vertJoints = ik(robot, kinematics, eePos, targetRot)
+    input("hit enter to move to vertical")
 
     #move to vertical position
-    robot.set_joint_targets(vertJoints)
-    time.sleep(10)
-
-    #find stuff for horizontal
-    horzJoints = ik(robot, kinematics, d0, np.array[0,1,0])
     robot.set_joint_targets(vertJoints)
     time.sleep(10)
 
@@ -202,10 +213,39 @@ def tip_movements(robot):
     # Ttip = np.vstack((np.hstack((rot, pos[:,np.newaxis])), np.array([0,0,0,1])))
     # Ttpee = np.linalg.inv(Teetp)
     # Tee = Ttip @ Ttpee
-    # print(Tee)
+    # # print(Tee)
     # vertJoints = ik(robot,kinematics,Tee[:3, 3], Tee[:3,:3])
     # robot.set_joint_targets(vertJoints)
     # print(pos)
+
+    time.sleep(10)
+
+    
+    #find stuff for horizontal
+    eeJoints = np.array(robot.joint_values,dtype = float)
+    eePos , eeRot = fk(eeJoints, kinematics)
+    d0 = eeRot @ saberForm
+    d0 /= np.linalg.norm(d0)
+
+    
+    targetDir = np.array([0,1,0],dtype=float)
+    # Calculate rotation needed to align saber with horizontal
+    v = np.cross(d0, targetDir)
+    c = np.dot(d0, targetDir)
+    s = np.linalg.norm(v)
+
+    vx = np.array([[0, -v[2], v[1]],
+                   [v[2], 0, -v[0]],
+                   [-v[1], v[0], 0]])
+    Ralign = np.eye(3) + vx + vx @ vx * ((1-c)/(s**2))
+    targetRot = Ralign @ eeRot
+    horzJoints = ik(robot, kinematics, eePos, targetRot)
+    input("hit enter to move to horizontal")
+    robot.set_joint_targets(horzJoints)
+    time.sleep(10)
+
+
+    
 
     # horzPose = np.array([-0.345104,  0.878735,  0.063695,  0.793129, -0.30527,  -1.575508, -1.666837])
     # pos, _ = fk(horzPose, kinematics)
