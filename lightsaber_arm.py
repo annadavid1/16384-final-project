@@ -294,23 +294,36 @@ def new_ik(robot, kinematics, target_pos, target_rot, seed=None,
 
 
 def new_ik_axis(robot, kinematics, target_pos, saber_local, axis, seed,
-                pos_tol=NEW_POS_TOL, axis_tol=NEW_AXIS_TOL, iters=3000, step=0.2):
-    """Limit-aware IK that holds ee position and aligns only the saber axis.
-    Roll about the saber axis is left free. Returns joints, or None with diagnostics."""
+                pos_tol=NEW_POS_TOL, axis_tol=NEW_AXIS_TOL, iters=3000,
+                step=0.5, damping=0.05, verbose=True):
+    """Limit-aware IK: hold ee position, align only the saber axis (roll is free)."""
     axis = np.asarray(axis, float) / np.linalg.norm(axis)
     seed = np.array(seed, dtype=float)
     q = np.clip(seed, NEW_LO, NEW_HI)
+    d0 = fk(q, kinematics)[1] @ saber_local
+    if verbose:
+        print("initial axis err (deg):", np.degrees(np.arccos(np.clip(d0 @ axis, -1, 1))))
     for _ in range(iters):
         pos, rot = fk(q, kinematics)
         d = rot @ saber_local
-        e = np.hstack((target_pos - pos, np.cross(d, axis)))
-        if np.linalg.norm(e[:3]) < pos_tol and np.linalg.norm(e[3:]) < axis_tol:
+        e_pos = (target_pos - pos) / 1000.0                  # meters, so rows match rotation rows
+        if d @ axis < -0.999:                                # antiparallel: cross() vanishes, so nudge
+            perp = np.cross(d, [1.0, 0.0, 0.0])
+            if np.linalg.norm(perp) < 1e-3:
+                perp = np.cross(d, [0.0, 1.0, 0.0])
+            e_rot = perp / np.linalg.norm(perp)
+        else:
+            e_rot = np.cross(d, axis)
+        if np.linalg.norm(e_pos) * 1000 < pos_tol and np.linalg.norm(e_rot) < axis_tol:
             return q
-        J = jacobian(q, kinematics)
+        e = np.hstack((e_pos, e_rot))
+        J = jacobian(q, kinematics).copy()
+        J[:3] /= 1000.0                                      # same units as e
         free = np.ones(7, bool)
-        for _ in range(7):
+        for _ in range(7):                                   # freeze joints that would exceed limits
             dq = np.zeros(7)
-            dq[free] = np.linalg.pinv(J[:, free], rcond=1e-3) @ e
+            Jf = J[:, free]
+            dq[free] = Jf.T @ np.linalg.solve(Jf @ Jf.T + damping**2 * np.eye(6), e)
             dq *= step
             bad = free & (((q + dq) < NEW_LO) | ((q + dq) > NEW_HI))
             if not bad.any():
@@ -318,12 +331,13 @@ def new_ik_axis(robot, kinematics, target_pos, saber_local, axis, seed,
             free &= ~bad
             dq[~free] = 0
         q = np.clip(q + dq, NEW_LO, NEW_HI)
-    pos, rot = fk(q, kinematics)
-    d = rot @ saber_local
-    print("axis IK failed. final pos err (mm):", np.linalg.norm(target_pos - pos),
-          " axis err (deg):", np.degrees(np.arccos(np.clip(d @ axis, -1, 1))))
-    print("joints at limit:", np.where((q <= NEW_LO + 1e-3) | (q >= NEW_HI - 1e-3))[0] + 1)
-    print("seed joints:", np.round(seed, 3))
+    if verbose:
+        pos, rot = fk(q, kinematics)
+        d = rot @ saber_local
+        print("axis IK failed. final pos err (mm):", np.linalg.norm(target_pos - pos),
+              " axis err (deg):", np.degrees(np.arccos(np.clip(d @ axis, -1, 1))))
+        print("joints at limit:", np.where((q <= NEW_LO + 1e-3) | (q >= NEW_HI - 1e-3))[0] + 1)
+        print("seed joints:", np.round(seed, 3))
     return None
 
 
