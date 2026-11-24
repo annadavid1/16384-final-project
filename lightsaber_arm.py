@@ -14,6 +14,11 @@ MAX_W = np.pi / 8  # rad/s
 NEW_LO = np.array([-2*np.pi, -2.059, -2*np.pi, -0.192, -2*np.pi, -1.693, -2*np.pi]) + 0.02
 NEW_HI = np.array([ 2*np.pi,  2.094,  2*np.pi,  3.927,  2*np.pi,  np.pi,  2*np.pi]) - 0.02
 
+# ---- tuning for the new pipeline ----
+NEW_LIFT_MM = 150     # extra lift after grasping, so the saber can swing clear of the table
+NEW_POS_TOL = 0.5     # mm; raise to 50-100 to let the ee drift if IK can't hold position
+NEW_AXIS_TOL = 0.01   # rad on the saber axis
+
 
 # =====================================================================
 # Original functions
@@ -227,14 +232,38 @@ def writePlane(detector, color):
 
 
 # =====================================================================
+# Jacobian check (run with mode 'jac'; needs no robot motion)
+# =====================================================================
+
+def new_test_jacobian(trials=20):
+    """Compare analytic Jacobian to finite differences of fk."""
+    worst = 0.0
+    for _ in range(trials):
+        q = np.random.uniform(-1, 1, 7)
+        J = jacobian(q, kinematics)
+        eps = 1e-6
+        p0, R0 = fk(q, kinematics)
+        J_num = np.zeros((6, 7))
+        for i in range(7):
+            dq = q.copy()
+            dq[i] += eps
+            p1, R1 = fk(dq, kinematics)
+            J_num[:3, i] = (p1 - p0) / eps
+            J_num[3:, i] = matrix_to_axis_angle(R1 @ R0.T) / eps
+        worst = max(worst, np.abs(J - J_num).max())
+    print("max |J - J_numeric| over", trials, "trials:", worst)
+    print("OK" if worst < 1e-3 else "MISMATCH: check frame indexing (try 0:7 instead of 1:) or units")
+
+
+# =====================================================================
 # New saber-orientation pipeline
-# Grasp -> measure T_ee_tip once -> rotate the saber axis to vertical,
-# then horizontal, keeping the ee position fixed.
+# Grasp -> lift -> measure T_ee_tip once -> rotate the saber axis to
+# vertical, then horizontal, holding the ee position.
 # =====================================================================
 
 def new_ik(robot, kinematics, target_pos, target_rot, seed=None,
            pos_tol=0.5, rot_tol=0.01, iters=2000, step=0.2):
-    """Limit-aware IK. Returns joint array, or None if it fails to converge."""
+    """Full-pose limit-aware IK. Returns joint array, or None (with diagnostics) on failure."""
     q = np.clip(np.array(robot.joint_values if seed is None else seed, dtype=float),
                 NEW_LO, NEW_HI)
     for _ in range(iters):
@@ -255,36 +284,53 @@ def new_ik(robot, kinematics, target_pos, target_rot, seed=None,
             free &= ~bad
             dq[~free] = 0
         q = np.clip(q + dq, NEW_LO, NEW_HI)
+    pos, rot = fk(q, kinematics)
+    e = np.hstack((target_pos - pos, matrix_to_axis_angle(target_rot @ rot.T)))
+    print("IK failed. final pos err (mm):", np.linalg.norm(e[:3]),
+          " rot err (rad):", np.linalg.norm(e[3:]))
+    print("joints at limit:", np.where((q <= NEW_LO + 1e-3) | (q >= NEW_HI - 1e-3))[0] + 1)
+    print("seed joints:", np.round(robot.joint_values if seed is None else seed, 3))
     return None
 
 
-def new_skew(v):
-    return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
-
-
-def new_rot_between(a, b):
-    """Minimal rotation taking unit vector a to unit vector b."""
-    v = np.cross(a, b)
-    c = a @ b
-    if np.linalg.norm(v) < 1e-8:
-        if c > 0:
-            return np.eye(3)
-        perp = np.cross(a, [1, 0, 0])  # antiparallel: rotate pi about a perpendicular axis
-        if np.linalg.norm(perp) < 1e-3:
-            perp = np.cross(a, [0, 1, 0])
-        perp /= np.linalg.norm(perp)
-        return 2 * np.outer(perp, perp) - np.eye(3)
-    vx = new_skew(v)
-    return np.eye(3) + vx + vx @ vx / (1 + c)
+def new_ik_axis(robot, kinematics, target_pos, saber_local, axis, seed,
+                pos_tol=NEW_POS_TOL, axis_tol=NEW_AXIS_TOL, iters=3000, step=0.2):
+    """Limit-aware IK that holds ee position and aligns only the saber axis.
+    Roll about the saber axis is left free. Returns joints, or None with diagnostics."""
+    axis = np.asarray(axis, float) / np.linalg.norm(axis)
+    seed = np.array(seed, dtype=float)
+    q = np.clip(seed, NEW_LO, NEW_HI)
+    for _ in range(iters):
+        pos, rot = fk(q, kinematics)
+        d = rot @ saber_local
+        e = np.hstack((target_pos - pos, np.cross(d, axis)))
+        if np.linalg.norm(e[:3]) < pos_tol and np.linalg.norm(e[3:]) < axis_tol:
+            return q
+        J = jacobian(q, kinematics)
+        free = np.ones(7, bool)
+        for _ in range(7):
+            dq = np.zeros(7)
+            dq[free] = np.linalg.pinv(J[:, free], rcond=1e-3) @ e
+            dq *= step
+            bad = free & (((q + dq) < NEW_LO) | ((q + dq) > NEW_HI))
+            if not bad.any():
+                break
+            free &= ~bad
+            dq[~free] = 0
+        q = np.clip(q + dq, NEW_LO, NEW_HI)
+    pos, rot = fk(q, kinematics)
+    d = rot @ saber_local
+    print("axis IK failed. final pos err (mm):", np.linalg.norm(target_pos - pos),
+          " axis err (deg):", np.degrees(np.arccos(np.clip(d @ axis, -1, 1))))
+    print("joints at limit:", np.where((q <= NEW_LO + 1e-3) | (q >= NEW_HI - 1e-3))[0] + 1)
+    print("seed joints:", np.round(seed, 3))
+    return None
 
 
 def new_orient_saber(axis, T_ee_tip, seed):
-    """Joints that put the saber's long axis along `axis`, keeping the ee position fixed."""
-    axis = np.asarray(axis, float) / np.linalg.norm(axis)
-    p_ee, R_ee = fk(seed, kinematics)
-    saber_dir = R_ee @ T_ee_tip[:3, 2]
-    R_goal = new_rot_between(saber_dir, axis) @ R_ee
-    return new_ik(robot, kinematics, p_ee, R_goal, seed=seed)
+    """Joints that put the saber's long axis along `axis`, holding the ee position."""
+    p_ee, _ = fk(seed, kinematics)
+    return new_ik_axis(robot, kinematics, p_ee, T_ee_tip[:3, 2], axis, seed)
 
 
 def new_saber_axis_error_deg(joints, T_ee_tip, axis):
@@ -294,10 +340,26 @@ def new_saber_axis_error_deg(joints, T_ee_tip, axis):
     return np.degrees(np.arccos(np.clip(d @ axis, -1, 1)))
 
 
+def new_measured_axis_error_deg(color, axis):
+    """Angle between the detector's saber line and `axis` (sign-agnostic)."""
+    axis = np.asarray(axis, float) / np.linalg.norm(axis)
+    f = detector.query(color)
+    if f is None:
+        return None
+    d = f[0] - f[1]
+    d = d / np.linalg.norm(d)
+    return np.degrees(np.arccos(np.clip(abs(d @ axis), -1, 1)))
+
+
 def new_tip_movements():
     grasp_lightsaber()  # ends with the gripper closed and the arm lifted
     color = input("enter lightsaber color: ").strip()
+
+    # extra lift so the saber can swing without hitting the table
+    input(f"hit enter to lift a further {NEW_LIFT_MM} mm")
+    ikDiff(robot, kinematics, np.array([0, 0, NEW_LIFT_MM, 0, 0, 0]))
     time.sleep(1)  # let the arm settle
+
     T_ee_tip = tipFrame(color, kinematics)
     if not np.isfinite(T_ee_tip).all():
         print("T_ee_tip contains NaN; check tipFrame / detector output")
@@ -323,6 +385,9 @@ def new_tip_movements():
         input(f"hit enter to move to {name}")
         robot.set_joint_targets(q)
         time.sleep(3)  # or wait on a motion-complete call, if your library has one
+        err = new_measured_axis_error_deg(color, axis)
+        if err is not None:
+            print(f"{name}: measured axis error {err:.2f} deg (should be near 0)")
         q0 = q  # seed the next solve from this solution
 
 
@@ -336,7 +401,7 @@ with Robot() as robot:
     input("Hit enter to open the gripper")
     robot.grip(1)
     mode = input("Enter 'xyz' to run the translation sequence, 'grasp' to run the grasp sequence, "
-                 "'ik' to run ik positions, 'tip' to run tip movements, or 'plane': ").strip()
+                 "'ik' to run ik positions, 'tip' to run tip movements, 'plane', or 'jac' to test the Jacobian: ").strip()
     if mode == 'plane':
         color = input('enter lightsaber color: ').strip()
         writePlane(detector, color)
@@ -348,5 +413,7 @@ with Robot() as robot:
         xyz_translation()
     elif mode == "grasp":
         grasp_lightsaber()
+    elif mode == "jac":
+        new_test_jacobian()
     else:
         print("unknown mode:", mode)
