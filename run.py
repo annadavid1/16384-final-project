@@ -262,22 +262,21 @@ def writePlane(detector, color):
         frames = None
         while frames is None:
             frames = detector.query(color)
-        c= np.append(c,[(frames[0] + frames[1])/2], axis =0)
+        c=np.append(c, [frames[1]], axis=0)
+        c=np.append(c, [frames[0]], axis=0)
         time.sleep(.5)
-    #center =abs(c-np.mean(c, axis=0))
     center = c
-    _,_,V= np.linalg.svd(center)
+    centeroid = np.mean(center, axis=0)
+    _,_,V= np.linalg.svd(center-centeroid)
     n=V[-1,:]
-    centroid = np.mean(center, axis=0)
-    print("n:", n)
-    print(center)
-    print("centroid:", centroid)
-    d= np.dot(centroid, n)
-    plane = np.append(n,d)
-    print(d)
+    d= np.dot(n, centeroid)
+    plane = np.append(n,-d)
     detector.draw_plane(plane)
+    print("Plane equation: ", n, " * x = ",-d)
+    print("Normal is: ", n, "d is ", -d*100, "mm")
     end = input("press enter to end plane")
-    if end != None: print("end")
+    
+
 
 
         
