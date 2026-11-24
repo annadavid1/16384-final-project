@@ -106,7 +106,7 @@ def grasp_lightsaber():
         dist = float(input("Enter distance to descend in cm: ")) * 10
     else:
         joints = [-0.3049, 0.321218, 0.294313, 0.632501, -0.319703, 0.321937, 0.258652]
-        dist = 10
+        dist = 70
     robot.set_joint_targets(joints)
     ikDiff(robot, kinematics, np.array([0, 0, -dist, 0, 0, 0]))
     robot.grip(0)
@@ -187,7 +187,7 @@ def tip_movements(robot):
     color = input("enter lightsaber color: ").strip()
     Teetp = tipFrame(color, kinematics)
 
-    pos = np.array([572.80119189, -76.42351284, 129.50237615])
+    pos = np.array([572.80119189, -76.42351284, 500.50237615])
     rot = np.eye(3)
     Ttip = np.vstack((np.hstack((rot, pos[:, np.newaxis])), np.array([0, 0, 0, 1])))
     Tee = Ttip @ np.linalg.inv(Teetp)
