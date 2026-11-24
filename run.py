@@ -178,15 +178,18 @@ def tip_movements(robot):
     input("hit enter to move 200mm in z")
     ikDiff(robot, kinematics, np.array([0,0,200,0,0,0]))
     time.sleep(1)
-    eeJoints = np.array(robot.joint_value,float)
+    
 
     #find joint angles necessary for vertical
+    eeJoints = np.array(robot.joint_value,float)
     eePos = fk(eeJoints, kinematics)
     saberForm =  Teetp[:3,2] * -1 #CHANGE FOR MILESTONE 3, hardcoding which way saber is pointed
 
     #this bit might be weird
     d0 = fk(eePos, kinematics)[1] @ saberForm
     vertJoints = ik(robot, kinematics, d0, np.array[0,0,1])
+
+    #move to vertical position
     robot.set_joint_targets(vertJoints)
     time.sleep(10)
 
